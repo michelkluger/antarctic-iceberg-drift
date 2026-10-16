@@ -1,22 +1,27 @@
 """Encode exported frames into a portrait MP4 and a GIF (method from sao-paulo-em-movimento/scripts/encode.py).
 
-Usage: python encode.py frames out/antarctic-iceberg-drift 0x0a1118 [gif_every=3] [gif_width=540] [gif_only]
-The README preview is the GIF alone, lighter:  ... encode.py frames media/preview 0x0a1118 6 380 gif_only
+Usage: python encode.py frames out/antarctic-iceberg-drift 0x0a1118 [--hold 5] [--gif-every 3] [--gif-width 540] [--gif-only]
+The last frame is held for --hold seconds in both outputs.
 """
-import sys, subprocess, imageio_ffmpeg
+import argparse, subprocess, imageio_ffmpeg
 
-frames, out, bg = sys.argv[1], sys.argv[2], sys.argv[3]
-every = int(sys.argv[4]) if len(sys.argv) > 4 else 3
-width = int(sys.argv[5]) if len(sys.argv) > 5 else 540
-gif_only = len(sys.argv) > 6 and sys.argv[6] == "gif_only"
+ap = argparse.ArgumentParser()
+ap.add_argument('frames'); ap.add_argument('out'); ap.add_argument('bg', help='pad colour, e.g. 0x0a1118')
+ap.add_argument('--hold', type=float, default=5, help='seconds to hold the last frame')
+ap.add_argument('--gif-every', type=int, default=3, help='keep every n-th frame in the GIF')
+ap.add_argument('--gif-width', type=int, default=540)
+ap.add_argument('--gif-only', action='store_true')
+a = ap.parse_args()
 ff = imageio_ffmpeg.get_ffmpeg_exe()
-pat = f"{frames}/f%05d.png"
-if not gif_only:
+pat = f"{a.frames}/f%05d.png"
+# hold as a frame count; in the GIF the padding goes before setpts so the cloned frames get their own timestamps
+hold = lambda fps: f"tpad=stop_mode=clone:stop={round(a.hold * fps)}"
+if not a.gif_only:
     # MP4: 1080x1920 portrait (TikTok/Reels), 30 fps; the card is fitted inside 1000x1840 and padded with the page colour
     subprocess.run([ff, "-y", "-framerate", "30", "-i", pat,
-        "-vf", f"scale=1000:1840:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color={bg},format=yuv420p",
-        "-c:v", "libx264", "-crf", "18", "-preset", "slow", "-movflags", "+faststart", f"{out}.mp4"], check=True)
-# GIF: every n-th frame at 20 fps (default every 3rd, 540 wide)
-vf = (f"select='not(mod(n\\,{every}))',setpts=N/20/TB,scale={width}:-2:flags=lanczos,split[a][b];"
+        "-vf", f"scale=1000:1840:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color={a.bg},{hold(30)},format=yuv420p",
+        "-c:v", "libx264", "-crf", "18", "-preset", "slow", "-movflags", "+faststart", f"{a.out}.mp4"], check=True)
+# GIF: every n-th frame at 20 fps
+vf = (f"select='not(mod(n\\,{a.gif_every}))',{hold(20)},setpts=N/20/TB,scale={a.gif_width}:-2:flags=lanczos,split[a][b];"
       "[a]palettegen=max_colors=192:stats_mode=diff[p];[b][p]paletteuse=dither=sierra2_4a:diff_mode=rectangle")
-subprocess.run([ff, "-y", "-i", pat, "-vf", vf, "-r", "20", f"{out}.gif"], check=True)
+subprocess.run([ff, "-y", "-i", pat, "-vf", vf, "-r", "20", f"{a.out}.gif"], check=True)

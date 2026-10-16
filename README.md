@@ -4,7 +4,7 @@ Every named Antarctic iceberg tracked by BYU's scatterometer database and the U.
 
 <p align="center"><img src="media/preview.gif" width="380" alt="Animated polar map of Antarctic iceberg tracks, 1976 to 2026"></p>
 
-**Page:** open `docs/index.html` in a browser. It is self-contained apart from one pinned library (proj4js 2.11.0 from cdnjs) and Google Fonts.
+**Live page:** https://michelkluger.github.io/antarctic-iceberg-drift/ (or open `docs/index.html` locally). It is self-contained apart from one pinned library (proj4js 2.11.0 from cdnjs) and Google Fonts.
 
 The record covers **400 named icebergs** and **334,328 position fixes**.
 - On 15 Oct 2026 the map shows 34 bergs, the same count as the U.S. National Ice Center's list for that day.
@@ -23,9 +23,9 @@ The record covers **400 named icebergs** and **334,328 position fixes**.
    - `build_html.py`: injects everything into `src/template.html` and writes `docs/index.html`.
    - It also writes `data/iceberg_tracks.csv` and `data/sources_per_berg.csv`.
 3. `scripts/export.py` + `scripts/encode.py` use the same method as [sao-paulo-em-movimento](https://github.com/michelkluger/sao-paulo-em-movimento):
-   - Playwright opens the page in a portrait video layout and steps it through `window.__seek`, one frame per 10 simulated days.
+   - Playwright opens the page in a portrait video layout and steps it through `window.__seek`, one frame per 10 simulated days (or per week for the slower cut).
    - Four workers split the frames, and an interrupted run resumes.
-   - ffmpeg encodes a 1080×1920 MP4 and a GIF.
+   - ffmpeg encodes a 1080×1920 MP4 and a GIF, holding the last frame for 5 s.
 
 ```sh
 sh scripts/download.sh
@@ -34,11 +34,21 @@ sh scripts/build.sh
 # optional: video export (uses Edge by default; PW_CHANNEL=chrome or "" for bundled Chromium)
 for k in 0 1 2 3; do uv run --with playwright python scripts/export.py docs/index.html frames dark 10 $k 4 & done; wait
 uv run --with imageio-ffmpeg python scripts/encode.py frames out/antarctic-iceberg-drift 0x0a1118
-# lighter GIF for this README: every 6th frame, 380 px wide
-uv run --with imageio-ffmpeg python scripts/encode.py frames media/preview 0x0a1118 6 380 gif_only
+
+# slower cut: one frame per week
+for k in 0 1 2 3; do uv run --with playwright python scripts/export.py docs/index.html frames7 dark 7 $k 4 & done; wait
+uv run --with imageio-ffmpeg python scripts/encode.py frames7 out/antarctic-iceberg-drift-slow 0x0a1118
+
+# lighter GIF for this README: slower cut, every 6th frame, 380 px wide
+uv run --with imageio-ffmpeg python scripts/encode.py frames7 media/preview 0x0a1118 --gif-every 6 --gif-width 380 --gif-only
 ```
 
-The full export is 1,912 frames: one per 10 days from 1 Feb 1976 to 15 Oct 2026, plus 2 s held on the last day. It gives a 64 s MP4 (14 MB) and a 32 s GIF (13 MB).
+Both cuts run from 1 Feb 1976 to 15 Oct 2026; the last frame lands on the final date and is held for 5 s (`--hold`).
+
+| Cut | Frames | MP4 | GIF |
+|---|---|---|---|
+| 10 days per frame | 1,853 | 67 s, 14.5 MB | 36 s, 13 MB |
+| 7 days per frame (slower) | 2,647 | 93 s, 18.8 MB | 49 s, 18 MB |
 
 ## Method
 

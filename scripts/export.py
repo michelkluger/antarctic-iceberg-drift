@@ -2,16 +2,15 @@
 
 Same method as sao-paulo-em-movimento/scripts/export.py: hide the controls, seek the page through its
 window.__seek hook, screenshot, and split frames across workers (frame i goes to worker i % K).
-Frames already on disk are skipped, so an interrupted run resumes.
+Frames already on disk are skipped, so an interrupted run resumes. The hold on the last frame is added by encode.py.
 Usage: python export.py docs/index.html frames dark <days_per_frame> <worker> <workers>
 """
-import sys, os
+import math, os, sys
 from playwright.sync_api import sync_playwright
 
 src, out, theme = os.path.abspath(sys.argv[1]), sys.argv[2], sys.argv[3]
 step = float(sys.argv[4])  # simulated days per frame
 k, K = int(sys.argv[5]), int(sys.argv[6])  # this worker / workers
-HOLD = 60  # extra frames on the final date: 2 s at 30 fps
 # Portrait card: title, map, date, quadrant legend in two columns, highlighted families, credits.
 # Every block gets a fixed height so all frames share one size.
 VIDEO_CSS = """
@@ -39,8 +38,8 @@ with sync_playwright() as p:
     box = pg.locator(".app").bounding_box()
     m = 14  # margin of page background around the card; one clip for every frame keeps sizes identical
     clip = {'x': round(box['x']) - m, 'y': round(box['y']) - m, 'width': round(box['width']) + 2 * m, 'height': round(box['height']) + 2 * m}
-    n = int((t1 - t0) // step) + 1
-    for i in range(k, n + HOLD, K):
+    n = math.ceil((t1 - t0) / step) + 1  # the last frame is clamped to the final date
+    for i in range(k, n, K):
         path = f"{out}/f{i:05d}.png"
         if os.path.exists(path):
             continue
