@@ -1,0 +1,5 @@
+raw/
+out/
+frames*/
+*.mp4
+__pycache__/

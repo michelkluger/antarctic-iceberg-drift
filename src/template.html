@@ -1,0 +1,795 @@
+<title>Antarctic Iceberg Drift</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Animated polar map of every NIC-named Antarctic iceberg track, 1976 to 2026, from the BYU/NASA SCP iceberg database and U.S. National Ice Center reports.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;0,600;0,700;1,500&family=Archivo+Narrow:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a square polar plotting sheet on the left, an instrument panel (date, legend, keys) on the right; stacks on narrow screens. */
+:root {
+  --bg: #e8edf1;
+  --panel: #f6f8fa;
+  --ink: #13202c;
+  --ink-2: #465564;
+  --ink-3: #6f7d8c;
+  --rule: #c7d1da;
+  --ocean: #d9e2ea;
+  --ice: #ffffff;
+  --shelf: #eef3f7;
+  --coast: #8293a4;
+  --shelf-front: #9fb0c0;
+  --grat: rgba(19, 32, 44, 0.14);
+  --halo: rgba(232, 237, 241, 0.86);
+  --flag: #d03b3b;
+  --q-a: #2a78d6;
+  --q-b: #e87ba4;
+  --q-c: #008300;
+  --q-d: #eda100;
+  --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-narrow: "Archivo Narrow", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --map: min(880px, max(300px, calc(100dvh - 232px)));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a1118; --panel: #0f1922; --ink: #e4ebf1; --ink-2: #a5b3c0; --ink-3: #74828f; --rule: #223140;
+    --ocean: #0f1a24; --ice: #303e4c; --shelf: #273543; --coast: #5f7184; --shelf-front: #4f6274;
+    --grat: rgba(228, 235, 241, 0.10); --halo: rgba(15, 26, 36, 0.82); --flag: #e66767;
+    --q-a: #3987e5; --q-b: #d55181; --q-c: #008300; --q-d: #c98500;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a1118; --panel: #0f1922; --ink: #e4ebf1; --ink-2: #a5b3c0; --ink-3: #74828f; --rule: #223140;
+  --ocean: #0f1a24; --ice: #303e4c; --shelf: #273543; --coast: #5f7184; --shelf-front: #4f6274;
+  --grat: rgba(228, 235, 241, 0.10); --halo: rgba(15, 26, 36, 0.82); --flag: #e66767;
+  --q-a: #3987e5; --q-b: #d55181; --q-c: #008300; --q-d: #c98500;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 15px/1.5 var(--f-display);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+a { color: inherit; text-decoration-color: var(--ink-3); text-underline-offset: 2px; }
+a:hover { text-decoration-color: currentColor; }
+:focus-visible { outline: 2px solid var(--q-a); outline-offset: 2px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.app { max-width: 1280px; margin: 0 auto; display: grid; gap: 18px; }
+header { display: grid; gap: 4px; }
+h1 { font: 700 clamp(22px, 2.6vw, 30px)/1.1 var(--f-display); letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--ink-2); max-width: 74ch; }
+.stage { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+.mapcol { flex: 1 1 520px; min-width: 0; display: grid; gap: 10px; justify-items: center; }
+.mapwrap { position: relative; width: 100%; max-width: var(--map); aspect-ratio: 1; border: 1px solid var(--rule); background: var(--ocean); }
+.mapwrap canvas { display: block; width: 100%; height: 100%; touch-action: manipulation; cursor: default; }
+.controls { width: 100%; max-width: var(--map); display: flex; align-items: center; gap: 12px; }
+.play {
+  flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--ink);
+  background: var(--ink); color: var(--bg); display: grid; place-items: center; cursor: pointer;
+}
+.play svg { width: 16px; height: 16px; fill: currentColor; }
+.scrub { position: relative; flex: 1 1 auto; min-width: 0; padding-bottom: 18px; }
+.scrub input { width: 100%; margin: 0; accent-color: var(--ink); height: 22px; cursor: pointer; }
+.ticks { position: absolute; left: 7px; right: 7px; bottom: 0; height: 16px; pointer-events: none; }
+.ticks span { position: absolute; top: 0; transform: translateX(-50%); font: 500 10.5px/1 var(--f-mono); color: var(--ink-3); white-space: nowrap; }
+.ticks span::before { content: ""; position: absolute; left: 50%; top: -6px; width: 1px; height: 4px; background: var(--ink-3); }
+.ticks i { position: absolute; top: -6px; width: 1px; height: 3px; background: var(--rule); }
+.speed { flex: none; display: grid; gap: 2px; font: 600 10.5px/1 var(--f-display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+.speed select { font: 500 13px/1.2 var(--f-display); color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 6px 8px; }
+.panel { flex: 1 1 300px; max-width: 380px; min-width: 0; display: grid; gap: 18px; align-content: start; }
+@media (max-width: 920px) { .panel { max-width: none; } }
+.readout { border-bottom: 1px solid var(--rule); padding-bottom: 12px; }
+.readout .eyebrow, .block h2 { font: 600 10.5px/1.2 var(--f-display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 6px; }
+.readout .date { font: 500 clamp(26px, 3.2vw, 34px)/1 var(--f-mono); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.readout .sub { margin-top: 6px; color: var(--ink-2); font-size: 13.5px; }
+.block { display: grid; gap: 6px; }
+.block .note { margin: -2px 0 2px; font-size: 12.5px; color: var(--ink-3); }
+.vidsub { margin: 0; color: var(--ink-2); font-size: 14px; }
+.vidcredit { margin: 0; color: var(--ink-3); font-size: 11.5px; line-height: 1.4; }
+.legend { display: grid; gap: 2px; }
+.row { border-radius: 6px; padding: 7px 8px 8px; transition: background-color .15s; }
+.row:hover, .row:focus-within { background: var(--panel); }
+.toggle {
+  all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: 14px 1fr auto; align-items: center; gap: 8px; cursor: pointer;
+}
+.toggle .sw { width: 12px; height: 12px; border-radius: 50%; background: var(--sw); box-shadow: 0 0 0 1.5px var(--ocean), 0 0 0 2.5px var(--rule); }
+.toggle .nm { font-weight: 600; font-size: 14.5px; }
+.toggle .nm small { font-weight: 500; font-size: 12.5px; color: var(--ink-2); margin-left: 6px; }
+.toggle .yr { font-size: 12px; color: var(--ink-2); }
+.toggle[aria-pressed="false"] .sw { background: transparent; box-shadow: inset 0 0 0 1.5px var(--sw); }
+.toggle[aria-pressed="false"] .nm, .toggle[aria-pressed="false"] .yr { color: var(--ink-3); text-decoration: line-through; }
+.sub2 { margin: 2px 0 0 22px; font-size: 12.5px; color: var(--ink-2); }
+.now { margin: 3px 0 0 22px; font: 500 12px/1.45 var(--f-narrow); color: var(--ink-3); }
+.now b { font-weight: 600; color: var(--ink); }
+.feat { display: flex; flex-wrap: wrap; gap: 6px; }
+.feat button {
+  font: 600 12.5px/1 var(--f-display); color: var(--ink); background: var(--panel); border: 1px solid var(--rule);
+  border-radius: 999px; padding: 6px 10px 6px 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.feat button .sw { width: 9px; height: 9px; border-radius: 50%; background: var(--sw); }
+.feat button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; font-size: 12.5px; color: var(--ink-2); }
+.keys svg { display: block; }
+.sizekey { display: block; width: 100%; max-width: 300px; height: auto; }
+.opts { display: grid; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.opts label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.opts input { accent-color: var(--ink); width: 15px; height: 15px; margin: 0; }
+.tip {
+  position: absolute; z-index: 2; pointer-events: none; max-width: 280px; padding: 9px 11px; border-radius: 6px;
+  background: var(--panel); border: 1px solid var(--rule); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+  font-size: 12.5px; line-height: 1.45; color: var(--ink-2);
+}
+.tip b { color: var(--ink); font-size: 14px; }
+.tip .tsw { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.tip .ln { display: block; }
+.about { border-top: 1px solid var(--rule); padding-top: 18px; display: grid; gap: 18px; }
+.about h2 { font: 700 18px/1.2 var(--f-display); margin: 0; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px 28px; }
+.cols section { min-width: 0; }
+.cols h3 { font: 600 10.5px/1.2 var(--f-display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 6px; }
+.cols li { font-size: 13.5px; color: var(--ink-2); max-width: 68ch; }
+.cols ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; }
+.cols code { font-family: var(--f-mono); font-size: 12px; overflow-wrap: anywhere; }
+.tablehead { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 16px; }
+.tablehead h3 { font: 600 10.5px/1.2 var(--f-display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin: 0; }
+.tablehead label { display: grid; gap: 3px; font-size: 12px; color: var(--ink-3); }
+.tablehead input { font: 500 13px/1.2 var(--f-mono); color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 6px 8px; width: 200px; max-width: 100%; }
+.tablewrap { overflow: auto; max-height: 460px; border: 1px solid var(--rule); border-radius: 4px; }
+table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 12.5px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th { position: sticky; top: 0; background: var(--panel); font-weight: 600; color: var(--ink-2); }
+td.num, th.num { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+td .tsw { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+@media (prefers-reduced-motion: reduce) { .row { transition: none; } }
+</style>
+<!--/head-->
+<div class="app">
+  <header>
+    <h1>Antarctic Iceberg Drift</h1>
+    <p class="vidsub" hidden>Every named Antarctic iceberg, 1976&ndash;2026, coloured by the quadrant where it was first sighted</p>
+    <p class="lede">Every reported position of the <span id="nBergs">400</span> named Antarctic icebergs in BYU's scatterometer tracking database and U.S. National Ice Center weekly reports, 1976 to 2026. Colour shows the quadrant where each berg was first sighted. Past tracks stay on the map as traces, and gaps in the record stay gaps.</p>
+  </header>
+  <main class="stage">
+    <section class="mapcol" aria-label="Map">
+      <div class="mapwrap" id="mapwrap">
+        <canvas id="map" role="img" aria-label="Antarctic polar stereographic map (EPSG:3031) with animated iceberg tracks. The table under the map lists every iceberg and its source."></canvas>
+        <div class="tip" id="tip" hidden></div>
+      </div>
+      <div class="controls">
+        <button class="play" id="play" type="button" aria-label="Play">
+          <svg id="icoPlay" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9.5-5.5z"/></svg>
+          <svg id="icoPause" viewBox="0 0 16 16" aria-hidden="true" hidden><path d="M3.5 2.5h3.2v11H3.5zM9.3 2.5h3.2v11H9.3z"/></svg>
+        </button>
+        <div class="scrub">
+          <input type="range" id="scrub" min="0" max="1" step="1" value="0" aria-label="Date on the timeline">
+          <div class="ticks" id="ticks"></div>
+        </div>
+        <label class="speed" for="speed">Speed
+          <select id="speed">
+            <option value="30.4375">1 month/s</option>
+            <option value="91.3125">3 months/s</option>
+            <option value="182.625">6 months/s</option>
+            <option value="365.25" selected>1 year/s</option>
+            <option value="730.5">2 years/s</option>
+            <option value="1461">4 years/s</option>
+          </select>
+        </label>
+      </div>
+    </section>
+    <aside class="panel" aria-label="Date and legend">
+      <div class="readout">
+        <p class="eyebrow">Map date (UTC)</p>
+        <div class="date" id="date">&nbsp;</div>
+        <div class="sub" id="datesub">&nbsp;</div>
+      </div>
+      <div class="block">
+        <h2>Colour: NIC quadrant of first sighting</h2>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="block" id="blkHighlight">
+        <h2>Highlight</h2>
+        <p class="note">The five families from the original brief. Their labels are bold and show distance travelled; click one to fade everything else.</p>
+        <div class="feat" id="feat"></div>
+      </div>
+      <div class="block" id="blkSize">
+        <h2>Marker size: area</h2>
+        <svg class="sizekey" id="sizekey" viewBox="0 0 300 70" role="img" aria-label="Marker size key"></svg>
+      </div>
+      <div class="block" id="blkStates">
+        <h2>Marker states</h2>
+        <div class="keys">
+          <svg width="26" height="18" viewBox="0 0 26 18" aria-hidden="true"><circle cx="13" cy="9" r="6" fill="var(--ink-2)" stroke="var(--ocean)" stroke-width="1.5"/></svg>
+          <span>Latest fix is at most 10 days old</span>
+          <svg width="26" height="18" viewBox="0 0 26 18" aria-hidden="true"><circle cx="13" cy="9" r="6" fill="none" stroke="var(--ink-2)" stroke-width="1.75" stroke-dasharray="3 2.5"/></svg>
+          <span>No fix for 10 to 90 days; shown at the last fix. Hidden after 90 days until the next fix.</span>
+          <svg width="26" height="18" viewBox="0 0 26 18" aria-hidden="true"><path d="M9 5l8 8M17 5l-8 8" stroke="var(--ink-2)" stroke-width="1.75" stroke-linecap="round"/></svg>
+          <span>Last fix in the record</span>
+          <svg width="26" height="18" viewBox="0 0 26 18" aria-hidden="true"><path d="M2 13 Q8 3 13 9 T24 6" fill="none" stroke="var(--ink-2)" stroke-width="1.75" stroke-linecap="round"/></svg>
+          <span>Trail: past 2 years, fading with age. Lines break where fixes are over 10 days apart; isolated fixes leave a dot.</span>
+        </div>
+      </div>
+      <div class="block" id="blkDisplay">
+        <h2>Display</h2>
+        <div class="opts">
+          <label for="optFull"><input type="checkbox" id="optFull" checked> Keep every past track as a trace</label>
+          <label for="optKm"><input type="checkbox" id="optKm"> Show distance travelled on every label</label>
+          <label for="optFlags"><input type="checkbox" id="optFlags"> Show fixes flagged by quality control</label>
+        </div>
+      </div>
+      <p class="vidcredit" hidden>Data: BYU/NASA SCP Antarctic Iceberg Tracking Database; U.S. National Ice Center. Coastline: Natural Earth. Distance travelled is estimated from observed fixes.</p>
+    </aside>
+  </main>
+  <section class="about" aria-labelledby="aboutH">
+    <h2 id="aboutH">Data and sources</h2>
+    <div class="cols">
+      <section>
+        <h3>Sources (accessed 16 Oct 2026)</h3>
+        <ul>
+          <li><a href="https://www.scp.byu.edu/data/iceberg/database1.html" target="_blank" rel="noopener">BYU/NASA Scatterometer Climate Record Pathfinder, Antarctic Iceberg Tracking Database</a>, consolidated database v8.0, one CSV per iceberg (<code>consolidated_database_v8.0.zip</code>, files dated 8 May 2026). Primary source.</li>
+          <li><a href="https://usicecenter.gov/Products/ArchiveSearchMulti?table=IcebergProducts&amp;linkChange=ant-three" target="_blank" rel="noopener">U.S. National Ice Center, Antarctic iceberg weekly CSV archive</a>: 615 weekly files, 7 Nov 2014 to 15 Oct 2026. The file for 28 Aug 2020 returned HTTP 404. Used after a berg's BYU record ends, for bergs BYU does not have, and for reported areas.</li>
+          <li><a href="https://github.com/nvkelso/natural-earth-vector/tree/v5.1.2/geojson" target="_blank" rel="noopener">Natural Earth</a> 1:50m land and 1:50m Antarctic ice shelves, v5.1.2, clipped south of 20&deg;S. Ice shelves are drawn in a lighter tint than grounded ice.</li>
+        </ul>
+      </section>
+      <section>
+        <h3>How the tracks were built</h3>
+        <ul>
+          <li>Every berg with a NIC name (A, B, C or D, a number, and fragment letters) in either source. BYU's 267 unnamed scatterometer tracks (<code>sa</code>, <code>e</code>, <code>uk</code> files) are left out.</li>
+          <li>BYU's README defines a per-sensor flag: 1 for an observation, 0 for a day BYU interpolated. Only observations are used (<span id="nDropped"></span> interpolated rows dropped).</li>
+          <li>When several sensors report the same day, the scatterometer fix is used (ASCAT, QuikSCAT, OSCAT, SeaWinds, NSCAT, ERS, SASS in that order), and the NIC fix only on days without one. BYU notes that some NIC reports are inconsistent; several have stale positions or a flipped longitude sign.</li>
+          <li>Nothing is interpolated. A marker sits at its latest fix; a line joins two fixes only when they are at most 10 days apart. Before the 1990s NIC reported most bergs weeks or months apart, so early tracks are mostly dots.</li>
+          <li>Area: the USNIC reported area where given (from Apr 2024); otherwise an estimate from NIC length and width in nautical miles, treating the berg as an ellipse (&pi;/4 &times; L &times; W); for the ten bergs on BYU's all-time size ranking, that maximum size before their first NIC dimensions. Markers keep the latest reported size. Size shows area only: it drops when a berg breaks up or its edges waste away, but thinning, which makes up much of the mass loss, is not in these sources, so mass is not shown.</li>
+          <li>Distance travelled is a running estimate: straight lines between successive fixes, counted only between fixes from the same sensor (NIC and the scatterometers place a berg's centre up to tens of km apart) and only once the berg has moved more than 10 km from the last counted point. Spikes are skipped and jumps add nothing. Each fragment starts at 0. It is rough: position noise still adds about 45 km a year to a stationary berg (the grounded A23a, 1992&ndash;2019), while sensor switches and gaps drop some real distance; other reasonable rules give totals up to 25% lower.</li>
+        </ul>
+      </section>
+      <section>
+        <h3>Quality control</h3>
+        <ul>
+          <li><b><span id="nLat"></span> fixes north of 45&deg;S</b> are flagged but drawn, since they belong to consistent tracks (<span id="latBergs"></span>). The northernmost is <span id="northmost"></span>. The map reaches about 44&deg;S on its axes to keep them in frame.</li>
+          <li><b><span id="nSpikes"></span> spikes</b>: fixes that disagree by more than 100 km/day with most fixes within &plusmn;5 days, or short excursions the track returns from. They stay in the CSV, flagged, and are hidden from the tracks.</li>
+          <li><b><span id="nJumps"></span> jumps</b>: consecutive fixes more than 100 km/day apart that are not isolated spikes. The line breaks there.</li>
+          <li>NIC reused the name A23B: BYU's A23B is a 1991&ndash;1999 piece of A23, USNIC's A23B a 2025 piece of A23A. Both sit under one name with a 25-year gap.</li>
+          <li>A23a has no fix after 31 Mar 2026 and is absent from both current lists (USNIC 15 Oct 2026, BYU 9 Oct 2026).</li>
+        </ul>
+      </section>
+    </div>
+    <div class="tablehead">
+      <h3>Every iceberg and its source</h3>
+      <label for="filter">Filter by name<input type="search" id="filter" placeholder="e.g. A68 or C19" autocomplete="off"></label>
+    </div>
+    <div class="tablewrap">
+      <table id="srcTable">
+        <thead><tr><th>Iceberg</th><th>Quadrant</th><th>Source</th><th>First fix</th><th>Last fix</th><th class="num">Fixes</th><th class="num">QC flags</th><th>Link</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"></script>
+<script>window.ICE_DATA = __DATA__;
+window.ICE_COAST = __COAST__;</script>
+<script>
+(() => {
+'use strict';
+const D = window.ICE_DATA, COAST = window.ICE_COAST;
+const DAY_MS = 864e5, EPOCH = Date.UTC(2000, 0, 1);
+const GAP_DAYS = 10, HIDE_DAYS = 90, TRAIL_DAYS = 730, NB = 7, TRACE_ALPHA = 0.3;
+const H = 5.32e6; // half-width of the square frame in EPSG:3031 metres (~44S on the axes, ~28S in the corners)
+const EPSG3031 = '+proj=stere +lat_0=-90 +lat_ts=-71 +lon_0=0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs';
+const P = proj4('EPSG:4326', EPSG3031);
+const Q_VAR = { A: '--q-a', B: '--q-b', C: '--q-c', D: '--q-d' };
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------- decode data ----------
+const undelta = a => { const o = new Array(a.length); let s = 0; for (let i = 0; i < a.length; i++) { s += a[i]; o[i] = s; } return o; };
+const ub = (arr, v) => { let lo = 0, hi = arr.length; while (lo < hi) { const m = (lo + hi) >> 1; if (arr[m] <= v) lo = m + 1; else hi = m; } return lo; };
+const quads = new Map(D.quadrants.map(q => [q.id, Object.assign({}, q, { members: [], on: true, first: Infinity, last: -Infinity })]));
+const featured = new Map(D.featured.map(f => [f.id, Object.assign({}, f, { members: [], first: Infinity, last: -Infinity })]));
+const bergs = D.bergs.map(b => {
+  const t = undelta(b.t), la = undelta(b.la).map(v => v / 1000), lo = undelta(b.lo).map(v => v / 1000), km = undelta(b.km);
+  const spike = new Set(b.sp), jump = new Set(b.j);
+  const gi = [];
+  for (let i = 0; i < t.length; i++) if (!spike.has(i)) gi.push(i);
+  const m = gi.length, gt = new Int32Array(m), gx = new Float64Array(m), gy = new Float64Array(m), brk = new Uint8Array(m);
+  for (let k = 0; k < m; k++) {
+    const i = gi[k], p = P.forward([lo[i], la[i]]);
+    gt[k] = t[i]; gx[k] = p[0]; gy[k] = p[1];
+    brk[k] = (k === 0 || jump.has(i) || t[i] - gt[k - 1] > GAP_DAYS) ? 1 : 0;
+  }
+  const sp = b.sp.map(i => { const p = P.forward([lo[i], la[i]]); return { i, t: t[i], x: p[0], y: p[1] }; });
+  const o = { name: b.n, fam: b.f, quad: b.n[0], feat: featured.has(b.f), t, la, lo, km, gi, gt, gx, gy, brk, sp,
+    runs: b.s, usnic: b.u, flags: b.q, areas: b.a, first: gt[0], last: gt[m - 1], n: t.length, lab: null, hp: 0 };
+  return o;
+}).filter(b => b.gt.length > 0);
+for (const o of bergs) for (const g of [quads.get(o.quad), featured.get(o.fam)]) if (g) { g.members.push(o); g.first = Math.min(g.first, o.first); g.last = Math.max(g.last, o.last); }
+const t0 = Math.min(...bergs.map(b => b.first)), t1 = Math.max(...bergs.map(b => b.last));
+
+const coast = COAST.features.map(f => {
+  const polys = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
+  return { kind: f.properties.kind, polys: polys.map(rings => rings.map(ring => {
+    const n = ring.length, xy = new Float64Array(n * 2), seam = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      const [lon, lat] = ring[i], p = P.forward([lon, lat]);
+      xy[2 * i] = p[0]; xy[2 * i + 1] = p[1];
+      if (i > 0) {
+        const [lon0, lat0] = ring[i - 1];
+        seam[i] = ((Math.abs(lon) > 179.99 && Math.abs(lon0) > 179.99) || (lat < -89.99 && lat0 < -89.99) || (lat > -20.01 && lat0 > -20.01)) ? 1 : 0;
+      }
+    }
+    return { xy, seam, n };
+  })) };
+});
+
+// ---------- helpers ----------
+const dayToDate = d => new Date(EPOCH + Math.floor(d) * DAY_MS);
+const iso = d => dayToDate(d).toISOString().slice(0, 10);
+const doy = d => { const dt = dayToDate(d); return Math.floor((dt - Date.UTC(dt.getUTCFullYear(), 0, 1)) / DAY_MS) + 1; };
+const fmtInt = n => Math.round(n).toLocaleString('en-US');
+const dm = (v, pos, neg) => { const a = Math.abs(v), d = Math.floor(a), m = (a - d) * 60; return d + '°' + m.toFixed(1).padStart(4, '0') + '′' + (v >= 0 ? pos : neg); };
+const srcAt = (b, i) => { let lo = 0, hi = b.runs.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (b.runs[m][0] <= i) lo = m; else hi = m - 1; } return D.srcLabels[b.runs[lo][1]]; };
+const areaAt = (b, T) => { let a = null; for (const e of b.areas) { if (e[0] <= T) a = e; else break; } return a; };
+const escapeHtml = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const nameCmp = (a, b) => a.localeCompare(b, 'en', { numeric: true });
+
+// ---------- DOM ----------
+const wrap = document.getElementById('mapwrap'), canvas = document.getElementById('map'), ctx = canvas.getContext('2d');
+const tip = document.getElementById('tip'), scrub = document.getElementById('scrub'), playBtn = document.getElementById('play');
+const speedSel = document.getElementById('speed'), dateEl = document.getElementById('date'), dateSub = document.getElementById('datesub');
+const optFull = document.getElementById('optFull'), optFlags = document.getElementById('optFlags'), optKm = document.getElementById('optKm');
+const base = document.createElement('canvas');
+const trace = document.createElement('canvas'), traceFocus = document.createElement('canvas');
+let S = 600, DPR = 1, C = {}, T = t0, playing = false, lastNow = null, speed = +speedSel.value;
+let pinned = null, preview = null, hover = null, hits = [], nowState = '', placeBoxes = [];
+let traceT = -Infinity, traceFocusKey = '';
+
+function readColors() {
+  const cs = getComputedStyle(document.documentElement);
+  const g = k => cs.getPropertyValue(k).trim();
+  C = { ocean: g('--ocean'), ice: g('--ice'), shelf: g('--shelf'), coast: g('--coast'), shelfFront: g('--shelf-front'), grat: g('--grat'),
+    ink: g('--ink'), ink2: g('--ink-2'), ink3: g('--ink-3'), halo: g('--halo'), flag: g('--flag'), q: {} };
+  for (const id in Q_VAR) C.q[id] = g(Q_VAR[id]);
+}
+const px = (x, y) => [(x + H) / (2 * H) * S, (H - y) / (2 * H) * S];
+const ll = (lon, lat) => { const p = P.forward([lon, lat]); return px(p[0], p[1]); };
+const k = () => S / 720; // scale relative to a 720px map
+const radiusFor = area => area ? Math.max(3.2, (2.2 + 0.19 * Math.sqrt(area)) * Math.max(0.7, k())) : 3.2 * Math.max(0.8, k());
+const labelSize = feat => Math.round(Math.max(10, Math.min(feat ? 13 : 12, (feat ? 12 : 11) * k())));
+const labelFont = feat => `${feat ? 600 : 500} ${labelSize(feat)}px "Archivo Narrow", "Arial Narrow", sans-serif`;
+
+// focus: a pinned or hovered featured family or quadrant fades everything else
+const focus = () => preview || pinned;
+const inFocus = b => { const f = focus(); return !f || (f.type === 'q' ? b.quad === f.id : b.fam === f.id); };
+const dim = b => inFocus(b) ? 1 : 0.13;
+const shown = b => quads.get(b.quad).on;
+
+// ---------- basemap ----------
+function ringPath(g, r) {
+  for (let i = 0; i < r.n; i++) { const [x, y] = px(r.xy[2 * i], r.xy[2 * i + 1]); if (i === 0) g.moveTo(x, y); else g.lineTo(x, y); }
+  g.closePath();
+}
+function strokeRing(g, r) {
+  for (let i = 0; i < r.n; i++) { const [x, y] = px(r.xy[2 * i], r.xy[2 * i + 1]); if (i === 0 || r.seam[i]) g.moveTo(x, y); else g.lineTo(x, y); }
+}
+function halotext(g, text, x, y) { g.strokeText(text, x, y); g.fillText(text, x, y); }
+function renderBase() {
+  base.width = Math.round(S * DPR); base.height = Math.round(S * DPR);
+  const g = base.getContext('2d');
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  g.fillStyle = C.ocean; g.fillRect(0, 0, S, S);
+  g.strokeStyle = C.grat; g.lineWidth = 1; g.beginPath();
+  for (const lat of [-40, -50, -60, -70, -80]) { for (let lon = -180; lon <= 180; lon += 2) { const [x, y] = ll(lon, lat); if (lon === -180) g.moveTo(x, y); else g.lineTo(x, y); } }
+  for (let lon = -180; lon < 180; lon += 30) { for (let lat = -80; lat <= -26; lat += 1) { const [x, y] = ll(lon, lat); if (lat === -80) g.moveTo(x, y); else g.lineTo(x, y); } }
+  g.stroke();
+  for (const kind of ['land', 'ice_shelf']) {
+    g.fillStyle = kind === 'land' ? C.ice : C.shelf;
+    for (const f of coast) if (f.kind === kind) for (const rings of f.polys) { g.beginPath(); for (const r of rings) ringPath(g, r); g.fill('evenodd'); }
+  }
+  g.lineJoin = 'round';
+  g.strokeStyle = C.shelfFront; g.lineWidth = 0.8; g.beginPath();
+  for (const f of coast) if (f.kind === 'ice_shelf') for (const rings of f.polys) for (const r of rings) strokeRing(g, r);
+  g.stroke();
+  g.strokeStyle = C.coast; g.lineWidth = 0.9; g.beginPath();
+  for (const f of coast) if (f.kind === 'land') for (const rings of f.polys) for (const r of rings) strokeRing(g, r);
+  g.stroke();
+}
+// labels drawn above the traces so they stay readable
+function drawBaseLabels() {
+  const fs = Math.max(9.5, Math.min(11.5, 10.5 * k()));
+  ctx.font = `500 ${fs}px "IBM Plex Mono", ui-monospace, monospace`; ctx.fillStyle = C.ink3; ctx.strokeStyle = C.halo; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const lat of [-50, -60, -70]) { const [x, y] = ll(-135, lat); halotext(ctx, Math.abs(lat) + '°S', x, y); }
+  const inset = fs * 1.4;
+  for (let lon = -150; lon <= 180; lon += 30) {
+    const a = lon * Math.PI / 180, dx = Math.sin(a), dy = -Math.cos(a);
+    const s = Math.min((S / 2 - inset) / Math.max(Math.abs(dx), 1e-9), (S / 2 - inset) / Math.max(Math.abs(dy), 1e-9));
+    const lab = lon === 0 ? '0°' : lon === 180 ? '180°' : Math.abs(lon) + '°' + (lon > 0 ? 'E' : 'W');
+    halotext(ctx, lab, S / 2 + dx * s, S / 2 + dy * s);
+  }
+  const pfs = Math.max(10, Math.min(12, 11 * k()));
+  ctx.font = `italic 500 ${pfs}px "Archivo", Arial, sans-serif`;
+  const places = [['Ross Ice Shelf', -176, -81.3, 'center'], ['Filchner–Ronne Ice Shelf', -58, -79.6, 'center'], ['Amery Ice Shelf', 73.2, -69.3, 'left'],
+    ['Larsen C', -57.6, -67.6, 'left'], ['Weddell Sea', -40, -69.5, 'center'], ['Ross Sea', -178, -74.2, 'center'],
+    ['South Georgia', -34.8, -54.4, 'left'], ['Drake Passage', -66, -58.4, 'center']];
+  placeBoxes = [];
+  for (const [name, lon, lat, align] of places) {
+    const [x, y] = ll(lon, lat); ctx.textAlign = align; halotext(ctx, name, x, y);
+    const w = ctx.measureText(name).width, x0 = align === 'center' ? x - w / 2 : x;
+    placeBoxes.push([x0, y - pfs * 0.6, x0 + w, y + pfs * 0.6]); // berg labels steer around these
+  }
+}
+
+// ---------- traces: every past fix, drawn once at full strength into a layer, composited faintly ----------
+function traceLayerReset() {
+  for (const c of [trace, traceFocus]) { c.width = Math.round(S * DPR); c.height = Math.round(S * DPR); }
+  for (const b of bergs) b.hp = 0;
+  traceT = -Infinity; traceFocusKey = '';
+}
+function traceAdvance(Ti, layer, pick, key) {
+  const g = layer.getContext('2d');
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  g.lineWidth = Math.max(1, 1.1 * Math.min(1.3, k())); g.lineCap = 'butt'; g.lineJoin = 'round';
+  const paths = {};
+  for (const b of bergs) {
+    if (!pick(b)) continue;
+    let i = b[key]; const m = b.gt.length;
+    if (i >= m || b.gt[i] > Ti) continue;
+    const p = paths[b.quad] || (paths[b.quad] = new Path2D());
+    for (; i < m && b.gt[i] <= Ti; i++) {
+      const [x1, y1] = px(b.gx[i], b.gy[i]);
+      if (b.brk[i]) { p.moveTo(x1 + 0.9, y1); p.arc(x1, y1, 0.9, 0, Math.PI * 2); } // run start or isolated fix: a dot
+      else { const [x0, y0] = px(b.gx[i - 1], b.gy[i - 1]); p.moveTo(x0, y0); p.lineTo(x1, y1); }
+    }
+    b[key] = i;
+  }
+  for (const q in paths) { g.strokeStyle = C.q[q]; g.stroke(paths[q]); }
+}
+function updateTraces(Ti) {
+  if (Ti < traceT) traceLayerReset();
+  traceAdvance(Ti, trace, shown, 'hp');
+  const f = focus(), fk = f ? f.type + ':' + f.id : '';
+  if (fk !== traceFocusKey) {
+    const g = traceFocus.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, traceFocus.width, traceFocus.height);
+    for (const b of bergs) b.hpf = 0;
+    traceFocusKey = fk;
+  }
+  if (f) traceAdvance(Ti, traceFocus, b => shown(b) && inFocus(b), 'hpf');
+  traceT = Ti;
+}
+
+// ---------- frame ----------
+function drawTrails(Ti) {
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const lw = Math.max(1.4, 1.75 * Math.min(1.2, k()));
+  for (const b of bergs) {
+    if (!shown(b)) continue;
+    const end = ub(b.gt, Ti) - 1; if (end < 1 || Ti - b.gt[end] > TRAIL_DAYS) continue;
+    const fa = dim(b);
+    ctx.strokeStyle = C.q[b.quad]; ctx.lineWidth = lw;
+    const wStart = ub(b.gt, Ti - TRAIL_DAYS);
+    let bucket = -1, prevDrawn = -2;
+    const paths = [];
+    for (let i = Math.max(1, wStart); i <= end; i++) {
+      if (b.brk[i]) continue;
+      const bk = Math.min(NB - 1, Math.floor((Ti - b.gt[i]) / TRAIL_DAYS * NB));
+      const p = paths[bk] || (paths[bk] = new Path2D());
+      const [x1, y1] = px(b.gx[i], b.gy[i]);
+      if (prevDrawn !== i - 1 || bk !== bucket) { const [x0, y0] = px(b.gx[i - 1], b.gy[i - 1]); p.moveTo(x0, y0); }
+      p.lineTo(x1, y1); prevDrawn = i; bucket = bk;
+    }
+    for (let bk = 0; bk < NB; bk++) if (paths[bk]) { ctx.globalAlpha = 0.92 * Math.pow(1 - (bk + 0.5) / NB, 1.1) * fa; ctx.stroke(paths[bk]); }
+  }
+  ctx.globalAlpha = 1;
+}
+function drawFrame() {
+  const Ti = T;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.drawImage(base, 0, 0, S, S);
+  if (optFull.checked) {
+    updateTraces(Ti);
+    const f = focus();
+    ctx.globalAlpha = f ? TRACE_ALPHA * 0.25 : TRACE_ALPHA; ctx.drawImage(trace, 0, 0, S, S);
+    if (f) { ctx.globalAlpha = TRACE_ALPHA * 1.6; ctx.drawImage(traceFocus, 0, 0, S, S); }
+    ctx.globalAlpha = 1;
+  }
+  drawBaseLabels();
+  drawTrails(Ti);
+  hits = [];
+  const live = [];
+  for (const b of bergs) {
+    if (!shown(b)) continue;
+    const fa = dim(b);
+    if (Ti > b.last && Ti - b.last < TRAIL_DAYS) {
+      const [x, y] = px(b.gx[b.gx.length - 1], b.gy[b.gy.length - 1]), s = 3.2 * Math.max(0.8, k());
+      ctx.globalAlpha = (1 - (Ti - b.last) / TRAIL_DAYS) * 0.9 * fa; ctx.strokeStyle = C.q[b.quad]; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(x - s, y - s); ctx.lineTo(x + s, y + s); ctx.moveTo(x + s, y - s); ctx.lineTo(x - s, y + s); ctx.stroke();
+    }
+    if (optFlags.checked) for (const s of b.sp) {
+      if (s.t > Ti || Ti - s.t > TRAIL_DAYS) continue;
+      const [x, y] = px(s.x, s.y), r = 3;
+      ctx.globalAlpha = fa; ctx.strokeStyle = C.flag; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r); ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r); ctx.stroke();
+      hits.push({ kind: 'flag', b, s, x, y, r: 4 });
+    }
+    if (Ti < b.first || Ti > b.last) continue;
+    const kk = ub(b.gt, Ti) - 1, age = Ti - b.gt[kk];
+    if (age > HIDE_DAYS) continue;
+    const a = areaAt(b, Ti), [x, y] = px(b.gx[kk], b.gy[kk]);
+    live.push({ b, k: kk, x, y, r: radiusFor(a && a[1]), area: a ? a[1] : 0, stale: age > GAP_DAYS, a });
+  }
+  ctx.globalAlpha = 1;
+  live.sort((p, q) => q.area - p.area);
+  for (const m of live) {
+    const fa = dim(m.b), col = C.q[m.b.quad];
+    ctx.globalAlpha = fa;
+    ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+    if (m.stale) {
+      ctx.fillStyle = C.ocean; ctx.globalAlpha = 0.55 * fa; ctx.fill(); ctx.globalAlpha = fa;
+      ctx.setLineDash([3, 2.5]); ctx.strokeStyle = col; ctx.lineWidth = 1.75; ctx.stroke(); ctx.setLineDash([]);
+    } else {
+      ctx.fillStyle = col; ctx.fill();
+      ctx.strokeStyle = C.ocean; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(m.x, m.y, m.r + (m.b.feat ? 1.6 : 1.2), 0, Math.PI * 2);
+    ctx.strokeStyle = C.ink; ctx.globalAlpha = (m.b.feat ? 0.85 : 0.25) * fa; ctx.lineWidth = m.b.feat ? 1.3 : 0.75; ctx.stroke();
+    hits.push({ kind: 'berg', m, x: m.x, y: m.y, r: m.r });
+  }
+  ctx.globalAlpha = 1;
+  placeLabels(live);
+  updateReadout(Ti, live);
+  if (hover) showTip(hover.x, hover.y);
+}
+
+// ---------- labels: every live marker gets its name, placed inside the frame and clear of other labels ----------
+const widthCache = new Map();
+function placeLabels(live) {
+  const pad = 3, boxes = [], circles = live.map(m => [m.x, m.y, m.r + 1]);
+  const order = live.slice().sort((p, q) => (q.b.feat - p.b.feat) || (p.stale - q.stale) || (q.area - p.area));
+  const over = (a, b) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.lineJoin = 'round';
+  for (const m of order) {
+    const name = m.b.name, font = labelFont(m.b.feat), fh = labelSize(m.b.feat);
+    ctx.font = font;
+    let w = widthCache.get(font + name); if (w == null) { w = ctx.measureText(name).width; widthCache.set(font + name, w); }
+    const showKm = m.b.feat || optKm.checked, kmFs = Math.max(9.5, fh - 2);
+    const kmText = showKm ? fmtInt(m.b.km[m.b.gi[m.k]]) + ' km' : '';
+    if (showKm) { ctx.font = `500 ${kmFs}px "IBM Plex Mono", ui-monospace, monospace`; w = Math.max(w, ctx.measureText(kmText).width); ctx.font = font; }
+    const h = fh + 1 + (showKm ? kmFs + 1 : 0), cands = [];
+    for (const ring of [m.r + 3, m.r + 14]) {
+      const d = ring * 0.72;
+      cands.push([m.x + ring, m.y - h / 2], [m.x - ring - w, m.y - h / 2], [m.x + d, m.y - d - h], [m.x + d, m.y + d],
+        [m.x - d - w, m.y - d - h], [m.x - d - w, m.y + d], [m.x - w / 2, m.y - ring - h], [m.x - w / 2, m.y + ring]);
+    }
+    const prev = m.b.lab, idxs = prev != null ? [prev, ...cands.keys()] : [...cands.keys()];
+    let best = null, bestScore = Infinity;
+    for (const ci of idxs) {
+      const [bx, by] = cands[ci];
+      if (bx < pad || by < pad || bx + w > S - pad || by + h > S - pad) continue;
+      const box = [bx, by, bx + w, by + h];
+      let score = ci >= 8 ? 4 : 0;
+      for (const o of boxes) score += over(box, o) * 3;
+      for (const c of circles) score += over(box, [c[0] - c[2], c[1] - c[2], c[0] + c[2], c[1] + c[2]]);
+      for (const o of placeBoxes) score += over(box, o) * 1.5;
+      if (score < bestScore) { bestScore = score; best = ci; if (score === 0) break; }
+    }
+    let bx, by;
+    if (best == null) { bx = Math.min(Math.max(pad, m.x + m.r + 3), S - pad - w); by = Math.min(Math.max(pad, m.y - h / 2), S - pad - h); }
+    else [bx, by] = cands[best];
+    m.b.lab = best;
+    boxes.push([bx, by, bx + w, by + h]);
+    const fa = dim(m.b);
+    if (best != null && best >= 8) {
+      const cx = Math.min(Math.max(m.x, bx), bx + w), cy = Math.min(Math.max(m.y, by), by + h), ang = Math.atan2(cy - m.y, cx - m.x);
+      ctx.globalAlpha = 0.6 * fa; ctx.strokeStyle = C.ink2; ctx.lineWidth = 0.75;
+      ctx.beginPath(); ctx.moveTo(m.x + Math.cos(ang) * (m.r + 1.5), m.y + Math.sin(ang) * (m.r + 1.5)); ctx.lineTo(cx, cy); ctx.stroke();
+    }
+    ctx.globalAlpha = fa;
+    ctx.font = font; ctx.strokeStyle = C.halo; ctx.lineWidth = 3.2; ctx.strokeText(name, bx, by + 1);
+    ctx.fillStyle = m.stale ? C.ink3 : (m.b.feat ? C.ink : C.ink2); ctx.fillText(name, bx, by + 1);
+    if (showKm) {
+      ctx.font = `500 ${kmFs}px "IBM Plex Mono", ui-monospace, monospace`;
+      ctx.strokeText(kmText, bx, by + fh + 2); ctx.fillStyle = C.ink2; ctx.fillText(kmText, bx, by + fh + 2);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ---------- readout, "on the map now" ----------
+function updateReadout(Ti, live) {
+  const d = Math.floor(Ti), n = live.length;
+  dateEl.textContent = iso(d);
+  dateSub.textContent = `Day ${String(doy(d)).padStart(3, '0')} · ${n} iceberg${n === 1 ? '' : 's'} on the map`;
+  if (+scrub.value !== d) scrub.value = d;
+  const names = live.map(m => m.b.name).sort(nameCmp), key = names.join(',');
+  if (key === nowState) return;
+  nowState = key;
+  for (const q of quads.values()) {
+    const list = live.filter(m => m.b.quad === q.id).map(m => m.b).sort((a, b) => nameCmp(a.name, b.name));
+    const shownList = list.slice(0, 14).map(b => b.feat ? `<b>${escapeHtml(b.name)}</b>` : escapeHtml(b.name)).join(', ');
+    q.nowEl.innerHTML = list.length ? `On the map: ${shownList}${list.length > 14 ? `, +${list.length - 14} more` : ''}` : 'None on the map';
+  }
+}
+
+// ---------- tooltip ----------
+function hitTest(x, y) {
+  let best = null, bd = Infinity;
+  for (const h of hits) {
+    const d = Math.hypot(h.x - x, h.y - y), reach = Math.max(h.r + 6, 12);
+    if (d <= reach && d - h.r < bd) { bd = d - h.r; best = h; }
+  }
+  return best;
+}
+function showTip(x, y) {
+  const h = hitTest(x, y);
+  if (!h) { tip.hidden = true; canvas.style.cursor = 'default'; return; }
+  canvas.style.cursor = 'pointer';
+  let html;
+  if (h.kind === 'berg') {
+    const { b, k: kk, a, stale } = h.m, i = b.gi[kk], col = C.q[b.quad];
+    const age = Math.floor(T) - b.gt[kk];
+    const src = srcAt(b, i) + (b.usnic[i] ? ` (${b.usnic[i]})` : '');
+    let area = 'Area not reported yet';
+    if (a) area = `Area ${a[2] === 0 ? '' : '≈ '}${fmtInt(a[1])} km² · ${escapeHtml(D.areaKinds[a[2]])}` + (a.length > 3 ? ` (${a[3]} × ${a[4]} nm, ${iso(a[0])})` : ` (${iso(a[0])})`);
+    const fl = b.flags[i] ? `<span class="ln">QC: ${escapeHtml(b.flags[i])}</span>` : '';
+    const a0 = a && b.areas.find(e => e[2] === a[2]); // compare like with like: estimate vs estimate, reported vs reported
+    if (a && a0 && a0 !== a && a[2] !== 2) { const ch = (a[1] / a0[1] - 1) * 100; area += ` · ${ch >= 0 ? '+' : '−'}${Math.abs(ch).toFixed(0)}% since ${iso(a0[0]).slice(0, 4)}`; }
+    const dist = `<span class="ln">Travelled ≈ ${fmtInt(b.km[i])} km since ${iso(b.first)} (estimate)</span>`;
+    html = `<b><span class="tsw" style="background:${col}"></span>${escapeHtml(b.name)}</b> <span>quadrant ${b.quad}${b.feat ? ` · ${escapeHtml(b.fam)} family` : ''}</span>
+      <span class="ln mono">Fix ${iso(b.gt[kk])}${stale ? ` · ${age} days ago` : ''}</span>
+      <span class="ln mono">${dm(b.la[i], 'N', 'S')} ${dm(b.lo[i], 'E', 'W')}</span>
+      <span class="ln">${area}</span>${dist}
+      <span class="ln">${escapeHtml(src)}</span>${fl}
+      <span class="ln">Record ${iso(b.first)} to ${iso(b.last)} · ${fmtInt(b.n)} fixes</span>`;
+  } else {
+    const { b, s } = h;
+    html = `<b>${escapeHtml(b.name)}: flagged fix</b>
+      <span class="ln mono">${iso(s.t)} · ${dm(b.la[s.i], 'N', 'S')} ${dm(b.lo[s.i], 'E', 'W')}</span>
+      <span class="ln">${escapeHtml(b.flags[s.i] || '')}</span>
+      <span class="ln">${escapeHtml(srcAt(b, s.i))}. Hidden from the track; kept in the CSV.</span>`;
+  }
+  tip.innerHTML = html; tip.hidden = false;
+  const W = wrap.clientWidth, tw = tip.offsetWidth, th = tip.offsetHeight;
+  let lx = h.x + 14, ly = h.y + 14;
+  if (lx + tw > W - 6) lx = h.x - tw - 14;
+  if (ly + th > W - 6) ly = h.y - th - 14;
+  tip.style.left = Math.max(6, lx) + 'px'; tip.style.top = Math.max(6, ly) + 'px';
+}
+canvas.addEventListener('pointermove', e => { const r = canvas.getBoundingClientRect(); hover = { x: e.clientX - r.left, y: e.clientY - r.top }; showTip(hover.x, hover.y); });
+canvas.addEventListener('pointerleave', () => { hover = null; tip.hidden = true; });
+canvas.addEventListener('pointerdown', e => { const r = canvas.getBoundingClientRect(); hover = { x: e.clientX - r.left, y: e.clientY - r.top }; showTip(hover.x, hover.y); });
+
+// ---------- playback ----------
+function setPlaying(p) {
+  playing = p;
+  document.getElementById('icoPlay').hidden = p; document.getElementById('icoPause').hidden = !p;
+  playBtn.setAttribute('aria-label', p ? 'Pause' : 'Play');
+  if (p) { if (T >= t1) T = t0; lastNow = null; requestAnimationFrame(loop); }
+}
+function loop(now) {
+  if (!playing) return;
+  if (lastNow != null) T = Math.min(t1, T + (now - lastNow) / 1000 * speed);
+  lastNow = now;
+  drawFrame();
+  if (T >= t1) { setPlaying(false); return; }
+  requestAnimationFrame(loop);
+}
+const redraw = () => { if (!playing) drawFrame(); };
+playBtn.addEventListener('click', () => setPlaying(!playing));
+speedSel.addEventListener('change', () => { speed = +speedSel.value; });
+scrub.addEventListener('input', () => { T = +scrub.value; redraw(); });
+document.addEventListener('keydown', e => {
+  if (e.key === ' ' && !/^(INPUT|SELECT|BUTTON|TEXTAREA|A)$/.test(e.target.tagName)) { e.preventDefault(); setPlaying(!playing); }
+});
+optFull.addEventListener('change', redraw);
+optFlags.addEventListener('change', redraw);
+optKm.addEventListener('change', redraw);
+
+// ---------- legend, highlight buttons, ticks, size key, table ----------
+const yrs = g => `${iso(g.first).slice(0, 4)}–${iso(g.last).slice(0, 4)}`;
+function buildLegend() {
+  const el = document.getElementById('legend');
+  for (const q of quads.values()) {
+    const div = document.createElement('div');
+    div.className = 'row'; div.style.setProperty('--sw', `var(${Q_VAR[q.id]})`);
+    div.innerHTML = `<button type="button" class="toggle" aria-pressed="true"><span class="sw"></span><span class="nm">${q.id}<small>${escapeHtml(q.range)}</small></span><span class="yr mono">${q.members.length} bergs</span></button>
+      <div class="sub2">${escapeHtml(q.region)} · ${yrs(q)}</div><div class="now"></div>`;
+    q.nowEl = div.querySelector('.now');
+    const btn = div.querySelector('button');
+    btn.addEventListener('click', () => { q.on = !q.on; btn.setAttribute('aria-pressed', String(q.on)); traceLayerReset(); redraw(); });
+    const on = () => { preview = { type: 'q', id: q.id }; redraw(); }, off = () => { preview = null; redraw(); };
+    div.addEventListener('pointerenter', on); div.addEventListener('pointerleave', off);
+    btn.addEventListener('focus', on); btn.addEventListener('blur', off);
+    el.appendChild(div);
+  }
+  const fe = document.getElementById('feat');
+  for (const f of featured.values()) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('aria-pressed', 'false'); b.style.setProperty('--sw', `var(${Q_VAR[f.id[0]]})`);
+    b.title = `${f.shelf} · ${f.members.length} berg${f.members.length > 1 ? 's' : ''} · ${yrs(f)}`;
+    b.innerHTML = `<span class="sw"></span>${escapeHtml(f.id)}${f.members.length > 1 ? ' family' : ''}`;
+    b.addEventListener('click', () => {
+      pinned = pinned && pinned.id === f.id ? null : { type: 'f', id: f.id };
+      fe.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b && !!pinned)));
+      redraw();
+    });
+    b.addEventListener('pointerenter', () => { preview = { type: 'f', id: f.id }; redraw(); });
+    b.addEventListener('pointerleave', () => { preview = null; redraw(); });
+    fe.appendChild(b);
+  }
+}
+function buildTicks() {
+  const el = document.getElementById('ticks'); el.innerHTML = '';
+  const y0 = dayToDate(t0).getUTCFullYear(), y1 = dayToDate(t1).getUTCFullYear(), step = el.clientWidth < 420 ? 10 : 5;
+  for (let y = y0 + 1; y <= y1; y++) {
+    const pct = ((Date.UTC(y, 0, 1) - EPOCH) / DAY_MS - t0) / (t1 - t0) * 100;
+    if (y % step === 0) { const s = document.createElement('span'); s.textContent = y; s.style.left = pct + '%'; el.appendChild(s); }
+    else { const i = document.createElement('i'); i.style.left = pct + '%'; el.appendChild(i); }
+  }
+}
+function buildSizeKey() {
+  const svg = document.getElementById('sizekey'), areas = [100, 1000, 5000, 11000];
+  const baseY = Math.ceil(2 * radiusFor(areas[areas.length - 1]) + 22);
+  let x = 6, out = '';
+  for (const a of areas) {
+    const r = radiusFor(a);
+    out += `<circle cx="${x + r}" cy="${baseY - r}" r="${r}" fill="none" stroke="var(--ink-2)" stroke-width="1.25"/>`;
+    out += `<text x="${x + r}" y="${baseY - 2 * r - 4}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink-3)">${fmtInt(a)}</text>`;
+    x += 2 * r + 16;
+  }
+  out += `<text x="${x}" y="${baseY - 2}" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink-3)">km²</text>`;
+  svg.setAttribute('viewBox', `0 0 ${Math.max(300, x + 30)} ${baseY + 4}`);
+  svg.innerHTML = out;
+}
+function buildTable() {
+  const tb = document.querySelector('#srcTable tbody');
+  const srcs = D.sources.slice().sort((a, b) => nameCmp(a.n, b.n) || a.first.localeCompare(b.first));
+  tb.innerHTML = srcs.map(s => {
+    const usnic = s.url.includes('usicecenter');
+    const link = usnic ? `<a href="https://usicecenter.gov/Products/ArchiveSearchMulti?table=IcebergProducts&amp;linkChange=ant-three" target="_blank" rel="noopener">USNIC archive</a> (${s.nurl} file${s.nurl > 1 ? 's' : ''})`
+      : `<a href="https://www.scp.byu.edu/data/iceberg/consolidated_database_v8.0.zip" target="_blank" rel="noopener">BYU v8.0 zip</a>`;
+    const src = usnic ? 'USNIC weekly reports' : s.src.replace('BYU/NASA SCP Antarctic Iceberg Tracking Database, ', 'BYU ');
+    return `<tr data-n="${escapeHtml(s.n.toUpperCase())}"><td><span class="tsw" style="background:var(${Q_VAR[s.n[0]]})"></span>${escapeHtml(s.n)}</td><td>${s.n[0]}</td><td>${escapeHtml(src)}</td><td class="mono">${s.first}</td><td class="mono">${s.last}</td><td class="num">${fmtInt(s.k)}</td><td class="num">${s.qf || ''}</td><td>${link}</td></tr>`;
+  }).join('');
+  const rows = [...tb.rows];
+  document.getElementById('filter').addEventListener('input', e => {
+    const v = e.target.value.trim().toUpperCase();
+    for (const r of rows) r.hidden = !!v && !r.dataset.n.startsWith(v);
+  });
+  let nS = 0, nJ = 0, nL = 0, latB = new Set(), north = { lat: -90 }, fixes = 0;
+  for (const b of bergs) {
+    nS += b.sp.length; fixes += b.n;
+    for (const key in b.flags) { const f = b.flags[key]; if (f.startsWith('jump')) nJ++; if (f.includes('lat >= -45')) { nL++; latB.add(b.name); } }
+    for (let i = 0; i < b.n; i++) if (b.la[i] > north.lat) north = { lat: b.la[i], lon: b.lo[i], name: b.name, t: b.t[i] };
+  }
+  const set = (id, v) => { document.getElementById(id).textContent = v; };
+  set('nBergs', fmtInt(bergs.length)); set('nSpikes', fmtInt(nS)); set('nJumps', fmtInt(nJ)); set('nLat', fmtInt(nL));
+  set('latBergs', [...latB].sort(nameCmp).join(', '));
+  set('northmost', `${north.name} on ${iso(north.t)} at ${dm(north.lat, 'N', 'S')} ${dm(north.lon, 'E', 'W')}`);
+  set('nDropped', fmtInt(D.droppedFill || 0));
+}
+
+// ---------- sizing, theme ----------
+function resize() {
+  const w = Math.round(wrap.clientWidth);
+  if (!w) return;
+  S = w; DPR = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(S * DPR); canvas.height = Math.round(S * DPR);
+  renderBase(); traceLayerReset(); buildTicks(); buildSizeKey(); drawFrame();
+}
+function retheme() { readColors(); renderBase(); traceLayerReset(); drawFrame(); }
+new ResizeObserver(() => resize()).observe(wrap);
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', retheme);
+new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+scrub.min = t0; scrub.max = t1; scrub.value = t0;
+readColors(); buildLegend(); buildTable(); resize();
+const fontsReady = document.fonts ? Promise.all([document.fonts.load('600 12px "Archivo Narrow"'), document.fonts.load('500 12px "Archivo Narrow"'), document.fonts.load('500 11px "IBM Plex Mono"'), document.fonts.load('italic 500 11px "Archivo"')]).catch(() => {}) : Promise.resolve();
+window.__range = [t0, t1]; // day numbers since 2000-01-01
+window.__seek = d => { setPlaying(false); T = Math.max(t0, Math.min(t1, d)); drawFrame(); };
+fontsReady.then(() => { widthCache.clear(); renderBase(); drawFrame(); window.__ready = true; if (!reduceMotion) setPlaying(true); });
+})();
+</script>
